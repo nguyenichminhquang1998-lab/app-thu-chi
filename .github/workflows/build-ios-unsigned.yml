@@ -1,0 +1,34 @@
+name: Build unsigned iOS IPA
+
+# Produces an unsigned .ipa you can download and sideload with a tool like
+# Sideloadly (Windows/macOS) using your own free Apple ID — no Mac needed
+# on your end, GitHub's macOS runner does the actual Xcode build.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - run: flutter pub get
+
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign
+
+      - name: Package into an unsigned .ipa
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -qr app-thu-chi-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-thu-chi-unsigned-ipa
+          path: build/ios/ipa/app-thu-chi-unsigned.ipa
