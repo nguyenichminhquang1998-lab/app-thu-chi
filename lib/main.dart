@@ -9,6 +9,27 @@ import 'state/settings_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Show the real exception text on screen instead of Flutter's default
+  // blank grey box in release builds — without this, a widget-build error
+  // is invisible on a sideloaded (non-debugger-attached) device.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Container(
+      color: const Color(0xFFFFCDD2),
+      padding: const EdgeInsets.all(12),
+      alignment: Alignment.topLeft,
+      child: SingleChildScrollView(
+        child: Text(
+          details.exceptionAsString(),
+          style: const TextStyle(color: Colors.black, fontSize: 11),
+        ),
+      ),
+    );
+  };
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+  };
+
   await initializeDateFormatting('vi_VN');
   await NotificationService.instance.init();
 
