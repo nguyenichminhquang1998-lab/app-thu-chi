@@ -14,14 +14,17 @@ Future<void> main() async {
   // blank grey box in release builds — without this, a widget-build error
   // is invisible on a sideloaded (non-debugger-attached) device.
   ErrorWidget.builder = (FlutterErrorDetails details) {
+    final allLines = details.stack.toString().split('\n');
+    final appLines = allLines.where((l) => l.contains('package:app_thu_chi/')).take(6).toList();
+    final stackLines = (appLines.isNotEmpty ? appLines : allLines.take(10).toList()).join('\n');
     return Container(
       color: const Color(0xFFFFCDD2),
       padding: const EdgeInsets.all(12),
       alignment: Alignment.topLeft,
       child: SingleChildScrollView(
         child: Text(
-          details.exceptionAsString(),
-          style: const TextStyle(color: Colors.black, fontSize: 11),
+          '${details.exceptionAsString()}\n\n$stackLines',
+          style: const TextStyle(color: Colors.black, fontSize: 10),
         ),
       ),
     );
