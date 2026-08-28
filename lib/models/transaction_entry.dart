@@ -16,7 +16,6 @@ class TxEntry {
   final int date; // millisSinceEpoch
   final String note;
   final String? tag;
-  final String? photoPath;
   final String? recurringId;
   final int createdAt;
 
@@ -31,7 +30,6 @@ class TxEntry {
     required this.date,
     this.note = '',
     this.tag,
-    this.photoPath,
     this.recurringId,
     required this.createdAt,
   });
@@ -46,7 +44,6 @@ class TxEntry {
     int? date,
     String? note,
     String? tag,
-    String? photoPath,
     String? recurringId,
   }) {
     return TxEntry(
@@ -60,7 +57,6 @@ class TxEntry {
       date: date ?? this.date,
       note: note ?? this.note,
       tag: tag ?? this.tag,
-      photoPath: photoPath ?? this.photoPath,
       recurringId: recurringId ?? this.recurringId,
       createdAt: createdAt,
     );
@@ -81,7 +77,6 @@ class TxEntry {
         'date': date,
         'note': note,
         'tag': tag,
-        'photo_path': photoPath,
         'recurring_id': recurringId,
         'created_at': createdAt,
       };
@@ -98,7 +93,6 @@ class TxEntry {
       date: map['date'] as int,
       note: map['note'] as String? ?? '',
       tag: map['tag'] as String?,
-      photoPath: map['photo_path'] as String?,
       recurringId: map['recurring_id'] as String?,
       createdAt: map['created_at'] as int,
     );

@@ -1,8 +1,4 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/category.dart';
@@ -14,7 +10,6 @@ import '../../utils/formatters.dart';
 import '../../utils/icon_catalog.dart';
 import '../../utils/id_generator.dart';
 import '../../widgets/thousands_input_formatter.dart';
-import '../../widgets/voice_input_button.dart';
 import 'category_picker_sheet.dart';
 
 class AddTransactionScreen extends StatefulWidget {
@@ -34,7 +29,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Category? _category;
   Wallet? _wallet;
   DateTime _date = DateTime.now();
-  String? _photoPath;
   bool _isRecurring = false;
   RecurrenceFrequency _frequency = RecurrenceFrequency.monthly;
 
@@ -50,7 +44,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _noteController.text = existing.note;
       _tagController.text = existing.tag ?? '';
       _date = DateTime.fromMillisecondsSinceEpoch(existing.date);
-      _photoPath = existing.photoPath;
     }
   }
 
@@ -163,12 +156,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const Divider(height: 1),
             TextField(
               controller: _noteController,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Ghi chú',
                 border: InputBorder.none,
-                suffixIcon: VoiceInputButton(
-                  onResult: (text) => _noteController.text = text,
-                ),
               ),
             ),
             TextField(
@@ -178,23 +168,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 border: InputBorder.none,
                 prefixIcon: Icon(Icons.sell_outlined),
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickReceiptPhoto,
-                    icon: const Icon(Icons.camera_alt_outlined),
-                    label: Text(_photoPath == null ? 'Đính kèm hoá đơn' : 'Đã đính kèm ảnh'),
-                  ),
-                ),
-                if (_photoPath != null)
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => setState(() => _photoPath = null),
-                  ),
-              ],
             ),
             if (currentTypeCategories.isEmpty)
               Padding(
@@ -273,16 +246,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     });
   }
 
-  Future<void> _pickReceiptPhoto() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
-    if (picked == null) return;
-    final dir = await getApplicationDocumentsDirectory();
-    final fileName = 'receipt_${newId()}.jpg';
-    final saved = await File(picked.path).copy('${dir.path}/$fileName');
-    setState(() => _photoPath = saved.path);
-  }
-
   Future<void> _save(BuildContext context, AppState appState) async {
     final amount = ThousandsInputFormatter.parse(_amountController.text);
     if (amount <= 0) {
@@ -308,7 +271,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         date: _date.millisecondsSinceEpoch,
         note: _noteController.text.trim(),
         tag: _tagController.text.trim().isEmpty ? null : _tagController.text.trim(),
-        photoPath: _photoPath,
       );
       await appState.updateTransaction(updated);
     } else {
@@ -343,7 +305,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         date: _date.millisecondsSinceEpoch,
         note: _noteController.text.trim(),
         tag: _tagController.text.trim().isEmpty ? null : _tagController.text.trim(),
-        photoPath: _photoPath,
         recurringId: recurringId,
         createdAt: now.millisecondsSinceEpoch,
       );

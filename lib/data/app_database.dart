@@ -65,7 +65,6 @@ class AppDatabase {
         date INTEGER NOT NULL,
         note TEXT NOT NULL DEFAULT '',
         tag TEXT,
-        photo_path TEXT,
         recurring_id TEXT,
         created_at INTEGER NOT NULL,
         FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE,

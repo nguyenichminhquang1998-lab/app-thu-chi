@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -67,6 +68,70 @@ class BackupService {
         text: 'Sao lưu dữ liệu Thu Chi',
       ),
     );
+  }
+
+  /// Builds one file containing every table for outside viewing/analysis
+  /// (spreadsheet or note apps). Unlike the JSON backup above, these are
+  /// not meant to be re-imported — only the JSON format round-trips
+  /// exactly through "Khôi phục dữ liệu".
+  Future<Map<String, List<Map<String, Object?>>>> _buildTables() async {
+    return {
+      'Ví': (await walletRepository.getAll(includeArchived: true)).map((e) => e.toMap()).toList(),
+      'Danh mục': (await categoryRepository.getAll(includeArchived: true)).map((e) => e.toMap()).toList(),
+      'Giao dịch': (await transactionRepository.getAll()).map((e) => e.toMap()).toList(),
+      'Ngân sách': (await budgetRepository.getAll()).map((e) => e.toMap()).toList(),
+      'Giao dịch định kỳ': (await recurringRepository.getAll()).map((e) => e.toMap()).toList(),
+      'Mục tiêu tiết kiệm': (await savingsGoalRepository.getAll()).map((e) => e.toMap()).toList(),
+    };
+  }
+
+  Future<File> exportCsv() async {
+    final tables = await _buildTables();
+    final rows = <List<Object?>>[];
+    tables.forEach((title, records) {
+      rows.add(['## $title']);
+      if (records.isNotEmpty) {
+        rows.add(records.first.keys.toList());
+        for (final record in records) {
+          rows.add(record.values.toList());
+        }
+      }
+      rows.add([]);
+    });
+    final csv = Csv().encode(rows);
+    final dir = await getTemporaryDirectory();
+    final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+    final file = File('${dir.path}/app-thu-chi-du-lieu-$stamp.csv');
+    await file.writeAsString(csv);
+    return file;
+  }
+
+  Future<File> exportMarkdown() async {
+    final tables = await _buildTables();
+    final buffer = StringBuffer('# Dữ liệu Thu Chi\n\nXuất lúc: ${DateTime.now()}\n\n');
+    tables.forEach((title, records) {
+      buffer.writeln('## $title\n');
+      if (records.isEmpty) {
+        buffer.writeln('_Không có dữ liệu_\n');
+        return;
+      }
+      final headers = records.first.keys.toList();
+      buffer.writeln('| ${headers.join(' | ')} |');
+      buffer.writeln('| ${headers.map((_) => '---').join(' | ')} |');
+      for (final record in records) {
+        buffer.writeln('| ${headers.map((h) => record[h]?.toString() ?? '').join(' | ')} |');
+      }
+      buffer.writeln();
+    });
+    final dir = await getTemporaryDirectory();
+    final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+    final file = File('${dir.path}/app-thu-chi-du-lieu-$stamp.md');
+    await file.writeAsString(buffer.toString());
+    return file;
+  }
+
+  Future<void> shareFile(File file, {String? text}) async {
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)], text: text));
   }
 
   Future<void> restoreFromFile(File file) async {

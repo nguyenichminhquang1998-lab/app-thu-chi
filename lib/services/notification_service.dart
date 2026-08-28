@@ -30,15 +30,20 @@ class NotificationService {
     _initialized = true;
   }
 
-  Future<void> requestPermissions() async {
-    await _plugin
+  /// Requests notification permission and reports whether it was granted,
+  /// so the caller can warn the user instead of silently scheduling
+  /// reminders that will never actually show.
+  Future<bool> requestPermissions() async {
+    await init();
+    final androidGranted = await _plugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
-    await _plugin
+    final iosGranted = await _plugin
         .resolvePlatformSpecificImplementation<
             IOSFlutterLocalNotificationsPlugin>()
         ?.requestPermissions(alert: true, badge: true, sound: true);
+    return (androidGranted ?? true) && (iosGranted ?? true);
   }
 
   Future<void> scheduleDailyReminder({required int hour, required int minute}) async {
@@ -66,6 +71,28 @@ class NotificationService {
   Future<void> cancelDailyReminder() async {
     await init();
     await _plugin.cancel(id: _dailyReminderId);
+  }
+
+  /// Fires an immediate notification so the user can confirm right away
+  /// that notifications and sound actually work on their device, instead
+  /// of waiting until the scheduled reminder time.
+  Future<void> showTestNotification() async {
+    await init();
+    await _plugin.show(
+      id: 999,
+      title: 'Thông báo thử',
+      body: 'Nếu bạn thấy và nghe được thông báo này, nhắc nhở hằng ngày sẽ hoạt động bình thường.',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _androidChannelId,
+          'Nhắc nhở hằng ngày',
+          channelDescription: 'Nhắc nhở ghi chép thu chi hằng ngày',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(presentSound: true, presentAlert: true, presentBanner: true),
+      ),
+    );
   }
 
   Future<void> showBudgetAlert({

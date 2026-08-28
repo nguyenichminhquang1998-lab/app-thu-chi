@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../services/auth_lock_service.dart';
 import '../../state/settings_state.dart';
+import 'pin_numpad.dart';
 
 class LockScreen extends StatefulWidget {
   final VoidCallback onUnlocked;
@@ -62,88 +63,42 @@ class _LockScreenState extends State<LockScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsState>();
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.lock_outline, size: 48, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 12),
-              const Text('Nhập mã PIN để mở khoá', style: TextStyle(fontSize: 16)),
-              const SizedBox(height: 16),
-              Row(
+        child: Column(
+          children: [
+            Expanded(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(4, (i) {
-                  final filled = i < _pin.length;
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 6),
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: filled ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
-                    ),
-                  );
-                }),
+                children: [
+                  Icon(Icons.lock_outline, size: 56, color: scheme.primary),
+                  const SizedBox(height: 20),
+                  Text('Nhập mã PIN để mở khoá', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 28),
+                  PinDots(filledCount: _pin.length),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                  ],
+                ],
               ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              ],
-              const SizedBox(height: 24),
-              _NumPad(onDigit: _onDigit, onBackspace: _onBackspace),
-              if (settings.biometricEnabled) ...[
-                const SizedBox(height: 12),
-                TextButton.icon(
+            ),
+            PinNumPad(onDigit: _onDigit, onBackspace: _onBackspace),
+            if (settings.biometricEnabled)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 12),
+                child: TextButton.icon(
                   onPressed: _tryBiometric,
                   icon: const Icon(Icons.fingerprint),
                   label: const Text('Dùng vân tay / Face ID'),
                 ),
-              ],
-            ],
-          ),
+              )
+            else
+              const SizedBox(height: 16),
+          ],
         ),
       ),
-    );
-  }
-}
-
-class _NumPad extends StatelessWidget {
-  final ValueChanged<String> onDigit;
-  final VoidCallback onBackspace;
-
-  const _NumPad({required this.onDigit, required this.onBackspace});
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = [
-      ['1', '2', '3'],
-      ['4', '5', '6'],
-      ['7', '8', '9'],
-      ['', '0', '⌫'],
-    ];
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final row in rows)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final key in row)
-                SizedBox(
-                  width: 72,
-                  height: 56,
-                  child: key.isEmpty
-                      ? null
-                      : TextButton(
-                          onPressed: key == '⌫' ? onBackspace : () => onDigit(key),
-                          child: Text(key, style: const TextStyle(fontSize: 22)),
-                        ),
-                ),
-            ],
-          ),
-      ],
     );
   }
 }

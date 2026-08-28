@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../services/auth_lock_service.dart';
 import '../../state/settings_state.dart';
+import 'pin_numpad.dart';
 
 class PinSetupScreen extends StatefulWidget {
   const PinSetupScreen({super.key});
@@ -18,7 +19,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   bool _confirming = false;
 
   void _onDigit(String digit) {
-    if (_pin.length >= 6) return;
+    if (_pin.length >= 4) return;
     setState(() => _pin += digit);
     if (_pin.length == 4) _submit();
   }
@@ -30,6 +31,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
   Future<void> _submit() async {
     if (!_confirming) {
+      // Give the 4th dot a moment to render filled before switching screens.
+      await Future.delayed(const Duration(milliseconds: 150));
+      if (!mounted) return;
       setState(() {
         _firstPin = _pin;
         _pin = '';
@@ -55,73 +59,47 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text(_confirming ? 'Xác nhận mã PIN' : 'Đặt mã PIN mới')),
-      body: Center(
+      body: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_confirming ? 'Nhập lại mã PIN để xác nhận' : 'Nhập mã PIN gồm 4 chữ số'),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(4, (i) {
-                final filled = i < _pin.length;
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 6),
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: filled ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
-                );
-              }),
+                ],
+              ),
             ),
-            const SizedBox(height: 32),
-            _NumPad(onDigit: _onDigit, onBackspace: _onBackspace),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.lock_outline, size: 56, color: scheme.primary),
+                  const SizedBox(height: 20),
+                  Text(
+                    _confirming ? 'Xác nhận mã PIN' : 'Đặt mã PIN mới',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _confirming ? 'Nhập lại mã PIN để xác nhận' : 'Nhập mã PIN gồm 4 chữ số',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 28),
+                  PinDots(filledCount: _pin.length),
+                ],
+              ),
+            ),
+            PinNumPad(onDigit: _onDigit, onBackspace: _onBackspace),
+            const SizedBox(height: 16),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _NumPad extends StatelessWidget {
-  final ValueChanged<String> onDigit;
-  final VoidCallback onBackspace;
-
-  const _NumPad({required this.onDigit, required this.onBackspace});
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = [
-      ['1', '2', '3'],
-      ['4', '5', '6'],
-      ['7', '8', '9'],
-      ['', '0', '⌫'],
-    ];
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final row in rows)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (final key in row)
-                SizedBox(
-                  width: 72,
-                  height: 56,
-                  child: key.isEmpty
-                      ? null
-                      : TextButton(
-                          onPressed: key == '⌫' ? onBackspace : () => onDigit(key),
-                          child: Text(key, style: const TextStyle(fontSize: 22)),
-                        ),
-                ),
-            ],
-          ),
-      ],
     );
   }
 }
