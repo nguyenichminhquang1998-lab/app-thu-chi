@@ -45,17 +45,7 @@ class TransactionTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (transaction.photoPath != null)
-            const Padding(
-              padding: EdgeInsets.only(right: 6),
-              child: Icon(Icons.receipt_long, size: 16, color: Colors.grey),
-            ),
-          AmountText(amount: transaction.amount, type: transaction.type, currency: transaction.currency),
-        ],
-      ),
+      trailing: AmountText(amount: transaction.amount, type: transaction.type, currency: transaction.currency),
     );
   }
 }

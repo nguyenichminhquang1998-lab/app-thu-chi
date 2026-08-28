@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -73,13 +71,6 @@ class TransactionDetailScreen extends StatelessWidget {
           ),
           if (transaction.tag != null) _InfoRow(label: 'Chủ đề', value: transaction.tag!),
           if (transaction.note.isNotEmpty) _InfoRow(label: 'Ghi chú', value: transaction.note),
-          if (transaction.photoPath != null) ...[
-            const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.file(File(transaction.photoPath!)),
-            ),
-          ],
         ],
       ),
     );

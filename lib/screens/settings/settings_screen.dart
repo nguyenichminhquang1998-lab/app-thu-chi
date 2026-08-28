@@ -96,13 +96,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: settings.reminderEnabled,
             onChanged: (v) => _toggleReminder(context, settings, v),
           ),
-          if (settings.reminderEnabled)
+          if (settings.reminderEnabled) ...[
             ListTile(
               leading: const SizedBox(width: 24),
               title: const Text('Đổi giờ nhắc nhở'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _pickReminderTime(context, settings),
             ),
+            ListTile(
+              leading: const SizedBox(width: 24),
+              title: const Text('Gửi thông báo thử ngay'),
+              subtitle: const Text('Kiểm tra xem điện thoại có hiện thông báo/chuông không'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => NotificationService.instance.showTestNotification(),
+            ),
+          ],
           const Divider(),
           const _SectionHeader('Bảo mật'),
           SwitchListTile(
@@ -133,7 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.upload_file_outlined),
             title: const Text('Sao lưu dữ liệu (xuất file)'),
-            onTap: () => _backupService.exportAndShare(),
+            onTap: () => _exportBackup(context),
           ),
           ListTile(
             leading: const Icon(Icons.download_outlined),
@@ -191,12 +199,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _toggleReminder(BuildContext context, SettingsState settings, bool enabled) async {
     if (enabled) {
-      await NotificationService.instance.requestPermissions();
+      final granted = await NotificationService.instance.requestPermissions();
       await settings.setReminder(enabled: true);
       await NotificationService.instance.scheduleDailyReminder(
         hour: settings.reminderHour,
         minute: settings.reminderMinute,
       );
+      if (!granted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Điện thoại đang chặn thông báo của app này. Vào Cài đặt hệ thống → Thông báo → Thu Chi để bật, nếu không nhắc nhở sẽ không hiện.',
+            ),
+            duration: Duration(seconds: 6),
+          ),
+        );
+      }
     } else {
       await settings.setReminder(enabled: false);
       await NotificationService.instance.cancelDailyReminder();
@@ -220,6 +238,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else {
       await settings.setLock(enabled: false, biometric: false);
     }
+  }
+
+  Future<void> _exportBackup(BuildContext context) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text('Chọn định dạng', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.restore_outlined),
+              title: const Text('JSON — dùng để khôi phục sau này'),
+              subtitle: const Text('Định dạng duy nhất "Khôi phục dữ liệu" đọc được'),
+              onTap: () => Navigator.of(context).pop('json'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.table_chart_outlined),
+              title: const Text('Excel/CSV — để xem trong Excel, Google Sheets'),
+              subtitle: const Text('Chỉ để xem, không dùng để khôi phục lại vào app'),
+              onTap: () => Navigator.of(context).pop('csv'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined),
+              title: const Text('Markdown (.md) — để xem/lưu trữ dạng văn bản'),
+              subtitle: const Text('Chỉ để xem, không dùng để khôi phục lại vào app'),
+              onTap: () => Navigator.of(context).pop('md'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null) return;
+    final file = switch (choice) {
+      'csv' => await _backupService.exportCsv(),
+      'md' => await _backupService.exportMarkdown(),
+      _ => await _backupService.exportToFile(),
+    };
+    await _backupService.shareFile(file, text: 'Dữ liệu Thu Chi');
   }
 
   Future<void> _restore(BuildContext context, AppState appState) async {

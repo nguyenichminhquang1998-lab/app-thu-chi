@@ -26,14 +26,6 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>Ứng dụng cần quyền truy cập camera để chụp ảnh hoá đơn cho giao dịch.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Ứng dụng cần quyền truy cập thư viện ảnh để đính kèm ảnh hoá đơn.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Ứng dụng cần quyền micro để nhập giao dịch bằng giọng nói.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Ứng dụng cần quyền nhận dạng giọng nói để nhập giao dịch bằng giọng nói.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Ứng dụng dùng Face ID để khoá và bảo vệ dữ liệu tài chính của bạn.</string>
 	<key>UIApplicationSceneManifest</key>
