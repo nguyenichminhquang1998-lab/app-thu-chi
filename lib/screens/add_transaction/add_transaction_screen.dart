@@ -6,10 +6,11 @@ import '../../models/recurring_transaction.dart';
 import '../../models/transaction_entry.dart';
 import '../../models/wallet.dart';
 import '../../state/app_state.dart';
+import '../../utils/amount_calculator.dart';
 import '../../utils/formatters.dart';
 import '../../utils/icon_catalog.dart';
 import '../../utils/id_generator.dart';
-import '../../widgets/thousands_input_formatter.dart';
+import '../../widgets/calculator_amount_field.dart';
 import 'category_picker_sheet.dart';
 
 class AddTransactionScreen extends StatefulWidget {
@@ -23,7 +24,8 @@ class AddTransactionScreen extends StatefulWidget {
 
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   late TxType _type;
-  final _amountController = TextEditingController();
+  AmountCalculator _calc = const AmountCalculator();
+  bool _showCalculatorKeypad = false;
   final _noteController = TextEditingController();
   final _tagController = TextEditingController();
   Category? _category;
@@ -40,16 +42,26 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final existing = widget.existing;
     _type = existing?.type == TxType.transfer ? TxType.expense : (existing?.type ?? TxType.expense);
     if (existing != null) {
-      _amountController.text = formatAmount(existing.amount);
+      _calc = AmountCalculator(currentInput: _rawAmountInput(existing.amount));
       _noteController.text = existing.note;
       _tagController.text = existing.tag ?? '';
       _date = DateTime.fromMillisecondsSinceEpoch(existing.date);
     }
   }
 
+  /// Renders an existing amount as a digit string the calculator can keep
+  /// extending (no thousands separators; ',' as the decimal point).
+  String _rawAmountInput(double amount) {
+    if (amount == amount.roundToDouble()) return amount.toInt().toString();
+    return amount.toString().replaceAll('.', ',');
+  }
+
+  void _closeCalculatorKeypad() {
+    if (_showCalculatorKeypad) setState(() => _showCalculatorKeypad = false);
+  }
+
   @override
   void dispose() {
-    _amountController.dispose();
     _noteController.dispose();
     _tagController.dispose();
     super.dispose();
@@ -84,121 +96,145 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SegmentedButton<TxType>(
-              segments: const [
-                ButtonSegment(value: TxType.expense, label: Text('Chi tiêu')),
-                ButtonSegment(value: TxType.income, label: Text('Thu nhập')),
-              ],
-              selected: {_type},
-              onSelectionChanged: (s) => setState(() => _type = s.first),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [ThousandsInputFormatter()],
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                filled: false,
-                hintText: '0',
-                suffixText: '₫',
-              ),
-            ),
-            const SizedBox(height: 8),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: _category == null
-                  ? const CircleAvatar(child: Icon(Icons.category_outlined))
-                  : CircleAvatar(
-                      backgroundColor: Color(_category!.color).withValues(alpha: 0.15),
-                      child: Icon(IconCatalog.iconFor(_category!.iconKey), color: Color(_category!.color)),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SegmentedButton<TxType>(
+                    segments: const [
+                      ButtonSegment(value: TxType.expense, label: Text('Chi tiêu')),
+                      ButtonSegment(value: TxType.income, label: Text('Thu nhập')),
+                    ],
+                    selected: {_type},
+                    onSelectionChanged: (s) {
+                      _closeCalculatorKeypad();
+                      setState(() => _type = s.first);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  CalculatorAmountDisplay(
+                    state: _calc,
+                    isActive: _showCalculatorKeypad,
+                    onTap: () => setState(() => _showCalculatorKeypad = true),
+                  ),
+                  const SizedBox(height: 8),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: _category == null
+                        ? const CircleAvatar(child: Icon(Icons.category_outlined))
+                        : CircleAvatar(
+                            backgroundColor: Color(_category!.color).withValues(alpha: 0.15),
+                            child: Icon(IconCatalog.iconFor(_category!.iconKey), color: Color(_category!.color)),
+                          ),
+                    title: Text(_category?.name ?? 'Chọn danh mục'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      _closeCalculatorKeypad();
+                      final selected = await showCategoryPicker(
+                        context,
+                        expenseCategories: expenseCategories,
+                        incomeCategories: incomeCategories,
+                        initialType: _type.asCategoryType ?? CategoryType.expense,
+                      );
+                      if (selected != null) {
+                        setState(() {
+                          _category = selected;
+                          _type = selected.type == CategoryType.expense ? TxType.expense : TxType.income;
+                        });
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.account_balance_wallet_outlined),
+                    title: Text(_wallet?.name ?? 'Chọn ví'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      _closeCalculatorKeypad();
+                      _pickWallet(context, appState.wallets);
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.event_outlined),
+                    title: Text('${formatDate(_date)}  ${formatTime(_date)}'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      _closeCalculatorKeypad();
+                      _pickDateTime(context);
+                    },
+                  ),
+                  const Divider(height: 1),
+                  TextField(
+                    controller: _noteController,
+                    onTap: _closeCalculatorKeypad,
+                    decoration: const InputDecoration(
+                      labelText: 'Ghi chú',
+                      border: InputBorder.none,
                     ),
-              title: Text(_category?.name ?? 'Chọn danh mục'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () async {
-                final selected = await showCategoryPicker(
-                  context,
-                  expenseCategories: expenseCategories,
-                  incomeCategories: incomeCategories,
-                  initialType: _type.asCategoryType ?? CategoryType.expense,
-                );
-                if (selected != null) {
-                  setState(() {
-                    _category = selected;
-                    _type = selected.type == CategoryType.expense ? TxType.expense : TxType.income;
-                  });
-                }
-              },
-            ),
-            const Divider(height: 1),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.account_balance_wallet_outlined),
-              title: Text(_wallet?.name ?? 'Chọn ví'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _pickWallet(context, appState.wallets),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_outlined),
-              title: Text('${formatDate(_date)}  ${formatTime(_date)}'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _pickDateTime(context),
-            ),
-            const Divider(height: 1),
-            TextField(
-              controller: _noteController,
-              decoration: const InputDecoration(
-                labelText: 'Ghi chú',
-                border: InputBorder.none,
-              ),
-            ),
-            TextField(
-              controller: _tagController,
-              decoration: const InputDecoration(
-                labelText: 'Chủ đề (tuỳ chọn)',
-                border: InputBorder.none,
-                prefixIcon: Icon(Icons.sell_outlined),
-              ),
-            ),
-            if (currentTypeCategories.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Chưa có danh mục ${_type == TxType.expense ? 'chi tiêu' : 'thu nhập'} nào. Hãy tạo trong mục Danh mục.',
-                  style: const TextStyle(color: Colors.orange),
-                ),
-              ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Giao dịch định kỳ'),
-              subtitle: const Text('Tự động lặp lại giao dịch này'),
-              value: _isRecurring,
-              onChanged: (v) => setState(() => _isRecurring = v),
-            ),
-            if (_isRecurring)
-              DropdownButtonFormField<RecurrenceFrequency>(
-                initialValue: _frequency,
-                decoration: const InputDecoration(labelText: 'Tần suất lặp lại'),
-                items: const [
-                  DropdownMenuItem(value: RecurrenceFrequency.daily, child: Text('Hằng ngày')),
-                  DropdownMenuItem(value: RecurrenceFrequency.weekly, child: Text('Hằng tuần')),
-                  DropdownMenuItem(value: RecurrenceFrequency.monthly, child: Text('Hằng tháng')),
-                  DropdownMenuItem(value: RecurrenceFrequency.yearly, child: Text('Hằng năm')),
+                  ),
+                  TextField(
+                    controller: _tagController,
+                    onTap: _closeCalculatorKeypad,
+                    decoration: const InputDecoration(
+                      labelText: 'Chủ đề (tuỳ chọn)',
+                      border: InputBorder.none,
+                      prefixIcon: Icon(Icons.sell_outlined),
+                    ),
+                  ),
+                  if (currentTypeCategories.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Chưa có danh mục ${_type == TxType.expense ? 'chi tiêu' : 'thu nhập'} nào. Hãy tạo trong mục Danh mục.',
+                        style: const TextStyle(color: Colors.orange),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Giao dịch định kỳ'),
+                    subtitle: const Text('Tự động lặp lại giao dịch này'),
+                    value: _isRecurring,
+                    onChanged: (v) {
+                      _closeCalculatorKeypad();
+                      setState(() => _isRecurring = v);
+                    },
+                  ),
+                  if (_isRecurring)
+                    DropdownButtonFormField<RecurrenceFrequency>(
+                      initialValue: _frequency,
+                      decoration: const InputDecoration(labelText: 'Tần suất lặp lại'),
+                      items: const [
+                        DropdownMenuItem(value: RecurrenceFrequency.daily, child: Text('Hằng ngày')),
+                        DropdownMenuItem(value: RecurrenceFrequency.weekly, child: Text('Hằng tuần')),
+                        DropdownMenuItem(value: RecurrenceFrequency.monthly, child: Text('Hằng tháng')),
+                        DropdownMenuItem(value: RecurrenceFrequency.yearly, child: Text('Hằng năm')),
+                      ],
+                      onChanged: (v) => setState(() => _frequency = v ?? RecurrenceFrequency.monthly),
+                    ),
                 ],
-                onChanged: (v) => setState(() => _frequency = v ?? RecurrenceFrequency.monthly),
               ),
-          ],
-        ),
+            ),
+          ),
+          if (_showCalculatorKeypad)
+            SafeArea(
+              top: false,
+              child: CalculatorKeypad(
+                onDigit: (d) => setState(() => _calc = _calc.inputDigit(d)),
+                onDecimal: () => setState(() => _calc = _calc.inputDecimalPoint()),
+                onBackspace: () => setState(() => _calc = _calc.backspace()),
+                onOperator: (op) => setState(() => _calc = _calc.applyOperator(op)),
+                onEquals: () => setState(() => _calc = _calc.evaluate()),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -247,7 +283,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   Future<void> _save(BuildContext context, AppState appState) async {
-    final amount = ThousandsInputFormatter.parse(_amountController.text);
+    // Resolve any pending operation even if the user didn't tap "=" —
+    // saving should always use the fully-computed amount, e.g. typing
+    // "500+300" then tapping Lưu directly should save 800, not 300.
+    final amount = _calc.evaluate().displayValue;
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập số tiền hợp lệ')),
