@@ -45,7 +45,14 @@ jobs:
           done
 
       - run: flutter analyze
-      - run: flutter test
+
+      # Every sqflite-backed test file opens the same fixed on-disk database
+      # path (see test/test_support.dart). flutter test runs test files
+      # concurrently by default, and on a multi-core runner that races two
+      # files against the same file, producing sqlite "readonly database"
+      # errors. --concurrency=1 serializes test files so that race can't
+      # happen — this only affects CI; local `flutter test` is unaffected.
+      - run: flutter test --concurrency=1
 
       - name: Build web
         run: flutter build web --release --base-href /app-thu-chi/
