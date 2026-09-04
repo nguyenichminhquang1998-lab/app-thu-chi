@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:local_auth/local_auth.dart';
 
 /// Handles the optional app-lock: a PIN (hashed, never stored in plain
@@ -13,6 +14,9 @@ class AuthLockService {
   bool verifyPin(String pin, String storedHash) => hashPin(pin) == storedHash;
 
   Future<bool> canUseBiometrics() async {
+    // Browsers expose no Face ID / fingerprint API this app can use, so on
+    // web the PIN is the only lock. Everything downstream keys off this.
+    if (kIsWeb) return false;
     try {
       final supported = await _localAuth.isDeviceSupported();
       final canCheck = await _localAuth.canCheckBiometrics;

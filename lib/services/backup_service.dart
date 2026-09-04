@@ -1,9 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:csv/csv.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../data/app_database.dart';
 import '../data/repositories/budget_repository.dart';
@@ -18,6 +16,7 @@ import '../models/recurring_transaction.dart';
 import '../models/savings_goal.dart';
 import '../models/transaction_entry.dart';
 import '../models/wallet.dart';
+import '../platform/exported_file.dart';
 
 /// Exports/imports the whole database as a single JSON file so users can
 /// back up their data to any cloud drive/Files app, or move it to a new
@@ -51,22 +50,15 @@ class BackupService {
     };
   }
 
-  Future<File> exportToFile() async {
-    final snapshot = await _buildSnapshot();
-    final dir = await getTemporaryDirectory();
-    final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final file = File('${dir.path}/app-thu-chi-backup-$stamp.json');
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(snapshot));
-    return file;
-  }
+  String _stamp() => DateTime.now().toIso8601String().replaceAll(':', '-');
 
-  Future<void> exportAndShare() async {
-    final file = await exportToFile();
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path)],
-        text: 'Sao lưu dữ liệu Thu Chi',
-      ),
+  /// The only format "Khôi phục dữ liệu" can read back.
+  Future<ExportedFile> buildJsonBackup() async {
+    final snapshot = await _buildSnapshot();
+    return ExportedFile(
+      name: 'app-thu-chi-backup-${_stamp()}.json',
+      mimeType: 'application/json',
+      bytes: utf8.encode(const JsonEncoder.withIndent('  ').convert(snapshot)),
     );
   }
 
@@ -85,7 +77,7 @@ class BackupService {
     };
   }
 
-  Future<File> exportCsv() async {
+  Future<ExportedFile> buildCsvExport() async {
     final tables = await _buildTables();
     final rows = <List<Object?>>[];
     tables.forEach((title, records) {
@@ -98,15 +90,14 @@ class BackupService {
       }
       rows.add([]);
     });
-    final csv = Csv().encode(rows);
-    final dir = await getTemporaryDirectory();
-    final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final file = File('${dir.path}/app-thu-chi-du-lieu-$stamp.csv');
-    await file.writeAsString(csv);
-    return file;
+    return ExportedFile(
+      name: 'app-thu-chi-du-lieu-${_stamp()}.csv',
+      mimeType: 'text/csv',
+      bytes: utf8.encode(Csv().encode(rows)),
+    );
   }
 
-  Future<File> exportMarkdown() async {
+  Future<ExportedFile> buildMarkdownExport() async {
     final tables = await _buildTables();
     final buffer = StringBuffer('# Dữ liệu Thu Chi\n\nXuất lúc: ${DateTime.now()}\n\n');
     tables.forEach((title, records) {
@@ -123,20 +114,18 @@ class BackupService {
       }
       buffer.writeln();
     });
-    final dir = await getTemporaryDirectory();
-    final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final file = File('${dir.path}/app-thu-chi-du-lieu-$stamp.md');
-    await file.writeAsString(buffer.toString());
-    return file;
+    return ExportedFile(
+      name: 'app-thu-chi-du-lieu-${_stamp()}.md',
+      mimeType: 'text/markdown',
+      bytes: utf8.encode(buffer.toString()),
+    );
   }
 
-  Future<void> shareFile(File file, {String? text}) async {
-    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)], text: text));
-  }
-
-  Future<void> restoreFromFile(File file) async {
-    final content = await file.readAsString();
-    final decoded = jsonDecode(content) as Map<String, dynamic>;
+  /// Restores from the raw bytes of a picked backup file. Taking bytes rather
+  /// than a file path is what makes restore work in the browser too, where a
+  /// picked file is a Blob with no path at all.
+  Future<void> restoreFromBytes(Uint8List bytes) async {
+    final decoded = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
     await restoreFromSnapshot(decoded);
   }
 

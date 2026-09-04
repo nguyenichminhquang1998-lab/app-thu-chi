@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../platform/file_delivery.dart';
 import '../../services/export_service.dart';
 import '../../state/app_state.dart';
 import '../../utils/date_range_utils.dart';
@@ -65,19 +66,19 @@ class _ReportsScreenState extends State<ReportsScreen> with SingleTickerProvider
     );
     if (choice == null) return;
     final file = choice == 'csv'
-        ? await _exportService.exportCsv(
+        ? await _exportService.buildCsvReport(
             transactions: appState.transactionsInRange,
             categoryOf: appState.categoryById,
             walletOf: appState.walletById,
           )
-        : await _exportService.exportPdf(
+        : await _exportService.buildPdfReport(
             transactions: appState.transactionsInRange,
             categoryOf: appState.categoryById,
             walletOf: appState.walletById,
             start: appState.selectedRange.start,
             end: appState.selectedRange.end,
           );
-    await _exportService.shareFile(file, text: 'Báo cáo thu chi');
+    await deliverFile(file, text: 'Báo cáo thu chi');
   }
 
   @override

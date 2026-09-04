@@ -1,0 +1,38 @@
+{
+    "name": "Thu Chi — Quản lý thu chi cá nhân",
+    "short_name": "Thu Chi",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#FFFFFF",
+    "theme_color": "#3F6DF0",
+    "lang": "vi",
+    "dir": "ltr",
+    "description": "Ghi chép thu chi, ví, danh mục, ngân sách, mục tiêu tiết kiệm và báo cáo biểu đồ. Dữ liệu lưu ngay trong trình duyệt của bạn.",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/Icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

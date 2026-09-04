@@ -8,6 +8,7 @@ import '../../utils/formatters.dart';
 import '../../widgets/balance_card.dart';
 import '../../widgets/period_selector.dart';
 import '../../widgets/transaction_tile.dart';
+import '../../widgets/web_storage_notice.dart';
 import '../add_transaction/add_transaction_screen.dart';
 import '../search/search_screen.dart';
 import '../transaction_detail/transaction_detail_screen.dart';
@@ -44,6 +45,9 @@ class HomeScreen extends StatelessWidget {
         onRefresh: appState.reloadAll,
         child: CustomScrollView(
           slivers: [
+            // Web-only: warns when browser storage is at risk. Renders
+            // nothing at all on native.
+            const SliverToBoxAdapter(child: WebStorageNotice()),
             SliverToBoxAdapter(
               child: BalanceCard(
                 balance: appState.totalBalance,

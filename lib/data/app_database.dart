@@ -1,5 +1,6 @@
-import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
+
+import '../platform/db_bootstrap.dart';
 
 /// Thin singleton wrapper around the app's single sqflite database.
 /// Repositories pull the opened [Database] from here rather than each
@@ -15,8 +16,9 @@ class AppDatabase {
   }
 
   Future<Database> _open() async {
-    final dir = await getDatabasesPath();
-    final path = join(dir, 'app_thu_chi.db');
+    // Web and native disagree on where a database lives (a real directory vs
+    // an IndexedDB key), so the platform module owns that decision.
+    final path = await resolveDatabasePath('app_thu_chi.db');
     return openDatabase(
       path,
       version: 1,

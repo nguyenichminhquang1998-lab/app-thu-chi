@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
@@ -15,8 +16,11 @@ class NotificationService {
   static const _dailyReminderId = 1000;
   static const _androidChannelId = 'app_thu_chi_reminders';
 
+  /// A browser cannot fire a scheduled reminder once the tab/PWA is closed,
+  /// so every entry point below turns into a no-op on web and the reminder
+  /// UI is hidden there (see SettingsScreen).
   Future<void> init() async {
-    if (_initialized) return;
+    if (_initialized || kIsWeb) return;
     tz_data.initializeTimeZones();
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosInit = DarwinInitializationSettings(
@@ -34,6 +38,7 @@ class NotificationService {
   /// so the caller can warn the user instead of silently scheduling
   /// reminders that will never actually show.
   Future<bool> requestPermissions() async {
+    if (kIsWeb) return false;
     await init();
     final androidGranted = await _plugin
         .resolvePlatformSpecificImplementation<
@@ -47,6 +52,7 @@ class NotificationService {
   }
 
   Future<void> scheduleDailyReminder({required int hour, required int minute}) async {
+    if (kIsWeb) return;
     await init();
     await _plugin.zonedSchedule(
       id: _dailyReminderId,
@@ -69,6 +75,7 @@ class NotificationService {
   }
 
   Future<void> cancelDailyReminder() async {
+    if (kIsWeb) return;
     await init();
     await _plugin.cancel(id: _dailyReminderId);
   }
@@ -77,6 +84,7 @@ class NotificationService {
   /// that notifications and sound actually work on their device, instead
   /// of waiting until the scheduled reminder time.
   Future<void> showTestNotification() async {
+    if (kIsWeb) return;
     await init();
     await _plugin.show(
       id: 999,
@@ -100,6 +108,7 @@ class NotificationService {
     required double spent,
     required double budget,
   }) async {
+    if (kIsWeb) return;
     await init();
     final overBudget = spent >= budget;
     await _plugin.show(

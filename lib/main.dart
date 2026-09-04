@@ -3,6 +3,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'platform/db_bootstrap.dart';
 import 'services/notification_service.dart';
 import 'state/app_state.dart';
 import 'state/settings_state.dart';
@@ -34,7 +35,18 @@ Future<void> main() async {
   };
 
   await initializeDateFormatting('vi_VN');
-  await NotificationService.instance.init();
+
+  // The database backend has to be chosen before AppState.init() runs the
+  // default-data seeder, which is the first thing to touch the database.
+  await initDatabaseBackend();
+
+  // A notification failure must never stop the app from starting: this runs
+  // before runApp(), so an uncaught throw here means a permanently blank app.
+  try {
+    await NotificationService.instance.init();
+  } catch (e) {
+    debugPrint('Bỏ qua khởi tạo thông báo: $e');
+  }
 
   final settings = SettingsState();
   await settings.load();

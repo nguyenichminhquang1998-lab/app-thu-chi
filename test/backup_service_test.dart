@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:app_thu_chi/models/category.dart';
 import 'package:app_thu_chi/models/transaction_entry.dart';
 import 'package:app_thu_chi/models/wallet.dart';
@@ -63,12 +65,15 @@ void main() {
     final backup = BackupService();
     final (wallet, category, tx) = await seedSampleData();
 
-    final file = await backup.exportToFile();
-    expect(await file.exists(), isTrue);
+    final file = await backup.buildJsonBackup();
+    expect(file.bytes, isNotEmpty);
+    expect(file.name, endsWith('.json'));
+    expect(file.mimeType, 'application/json');
 
-    // Wipe everything, then restore from the file we just wrote — this is
-    // exactly what "Khôi phục dữ liệu" does after picking a file.
-    await backup.restoreFromFile(file);
+    // Wipe everything, then restore from the bytes we just produced — this is
+    // exactly what "Khôi phục dữ liệu" does after picking a file, on both
+    // native and web.
+    await backup.restoreFromBytes(file.bytes);
 
     final wallets = await backup.walletRepository.getAll();
     final categories = await backup.categoryRepository.getAll();
@@ -85,16 +90,13 @@ void main() {
     expect(transactions, hasLength(1));
     expect(transactions.single.amount, tx.amount);
     expect(transactions.single.note, 'Ăn trưa');
-
-    await file.delete();
   });
 
   test('CSV export contains every table with real data', () async {
     final backup = BackupService();
     await seedSampleData();
 
-    final file = await backup.exportCsv();
-    final content = await file.readAsString();
+    final content = utf8.decode((await backup.buildCsvExport()).bytes);
 
     expect(content, contains('Ví'));
     expect(content, contains('Danh mục'));
@@ -102,30 +104,25 @@ void main() {
     expect(content, contains('Ví thử nghiệm'));
     expect(content, contains('Ăn uống'));
     expect(content, contains('45000'));
-
-    await file.delete();
   });
 
   test('Markdown export renders valid tables with real data', () async {
     final backup = BackupService();
     await seedSampleData();
 
-    final file = await backup.exportMarkdown();
-    final content = await file.readAsString();
+    final content = utf8.decode((await backup.buildMarkdownExport()).bytes);
 
     expect(content, contains('# Dữ liệu Thu Chi'));
     expect(content, contains('## Ví'));
     expect(content, contains('| --- |'));
     expect(content, contains('Ví thử nghiệm'));
     expect(content, contains('Ăn trưa'));
-
-    await file.delete();
   });
 
   test('restoring replaces old data rather than appending to it', () async {
     final backup = BackupService();
     await seedSampleData();
-    final firstExport = await backup.exportToFile();
+    final firstExport = await backup.buildJsonBackup();
 
     // Add a second, different wallet before restoring the first snapshot.
     await backup.walletRepository.insert(Wallet(
@@ -138,12 +135,10 @@ void main() {
     ));
     expect(await backup.walletRepository.getAll(), hasLength(2));
 
-    await backup.restoreFromFile(firstExport);
+    await backup.restoreFromBytes(firstExport.bytes);
 
     final wallets = await backup.walletRepository.getAll();
     expect(wallets, hasLength(1), reason: 'restore should wipe data added after the backup, not merge it');
     expect(wallets.single.name, 'Ví thử nghiệm');
-
-    await firstExport.delete();
   });
 }

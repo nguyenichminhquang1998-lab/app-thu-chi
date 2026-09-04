@@ -53,6 +53,8 @@ dependencies:
   uuid: ^4.6.0
   crypto: ^3.0.7
   package_info_plus: ^10.2.1
+  sqflite_common_ffi_web: ^1.1.2
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +80,12 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # Bundled purely so exported PDF reports can render Vietnamese diacritics —
+  # the PDF library's built-in Helvetica has no glyphs for them.
+  assets:
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Medium.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

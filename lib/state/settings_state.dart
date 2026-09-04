@@ -21,6 +21,8 @@ class SettingsState extends ChangeNotifier {
   static const _kBalanceHidden = 'balance_hidden';
   static const _kBaseCurrency = 'base_currency';
   static const _kExchangeRates = 'exchange_rates_json';
+  static const _kLastBackupAt = 'last_backup_at';
+  static const _kInstallHintDismissed = 'install_hint_dismissed';
 
   SharedPreferences? _prefs;
 
@@ -37,6 +39,11 @@ class SettingsState extends ChangeNotifier {
   bool balanceHidden = false;
   String baseCurrency = 'VND';
   Map<String, double> exchangeRates = {'VND': 1.0};
+
+  /// When the user last exported a backup. Browser storage can be wiped by
+  /// the browser itself, so the web build nags gently when this gets stale.
+  DateTime? lastBackupAt;
+  bool installHintDismissed = false;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -58,6 +65,21 @@ class SettingsState extends ChangeNotifier {
       final decoded = jsonDecode(ratesJson) as Map<String, dynamic>;
       exchangeRates = decoded.map((k, v) => MapEntry(k, (v as num).toDouble()));
     }
+    final backupMillis = prefs.getInt(_kLastBackupAt);
+    lastBackupAt = backupMillis == null ? null : DateTime.fromMillisecondsSinceEpoch(backupMillis);
+    installHintDismissed = prefs.getBool(_kInstallHintDismissed) ?? false;
+    notifyListeners();
+  }
+
+  Future<void> markBackedUp() async {
+    lastBackupAt = DateTime.now();
+    await _prefs?.setInt(_kLastBackupAt, lastBackupAt!.millisecondsSinceEpoch);
+    notifyListeners();
+  }
+
+  Future<void> dismissInstallHint() async {
+    installHintDismissed = true;
+    await _prefs?.setBool(_kInstallHintDismissed, true);
     notifyListeners();
   }
 
