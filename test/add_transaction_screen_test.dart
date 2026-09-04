@@ -69,14 +69,66 @@ void main() {
     expect(find.text('Nhập bằng giọng nói'), findsNothing);
   });
 
-  testWidgets('amount field accepts input with thousands separators', (tester) async {
+  testWidgets('calculator keypad is hidden until the amount field is tapped', (tester) async {
     await pumpAddTransactionScreen(tester);
 
-    final amountField = find.widgetWithText(TextField, '0').first;
-    await tester.enterText(amountField, '1500000');
+    expect(find.byKey(const ValueKey('calc-equals')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('calc-amount-display')));
     await tester.pump();
 
+    expect(find.byKey(const ValueKey('calc-equals')), findsOneWidget);
+  });
+
+  testWidgets('calculator keypad hides again when another field is tapped', (tester) async {
+    await pumpAddTransactionScreen(tester);
+    await tester.tap(find.byKey(const ValueKey('calc-amount-display')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('calc-equals')), findsOneWidget);
+
+    final noteField = find.widgetWithText(TextField, 'Ghi chú');
+    await tester.ensureVisible(noteField);
+    await tester.pumpAndSettle();
+    await tester.tap(noteField);
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('calc-equals')), findsNothing);
+  });
+
+  testWidgets('amount keypad accepts digit taps with thousands separators', (tester) async {
+    await pumpAddTransactionScreen(tester);
+
+    await tester.tap(find.byKey(const ValueKey('calc-amount-display')));
+    await tester.pump();
+    for (final d in '1500000'.split('')) {
+      await tester.tap(find.byKey(ValueKey('calc-digit-$d')));
+      await tester.pump();
+    }
+
     expect(find.text('1.500.000'), findsOneWidget);
+  });
+
+  testWidgets('calculator computes 622.222 − 32.922 = 589.300', (tester) async {
+    await pumpAddTransactionScreen(tester);
+
+    await tester.tap(find.byKey(const ValueKey('calc-amount-display')));
+    await tester.pump();
+    for (final d in '622222'.split('')) {
+      await tester.tap(find.byKey(ValueKey('calc-digit-$d')));
+      await tester.pump();
+    }
+    await tester.tap(find.byKey(const ValueKey('calc-op-subtract')));
+    await tester.pump();
+    expect(find.text('622.222'), findsOneWidget, reason: 'expression trail shows the first operand once an operator is pressed');
+
+    for (final d in '32922'.split('')) {
+      await tester.tap(find.byKey(ValueKey('calc-digit-$d')));
+      await tester.pump();
+    }
+    await tester.tap(find.byKey(const ValueKey('calc-equals')));
+    await tester.pump();
+
+    expect(find.text('589.300'), findsOneWidget);
   });
 
   testWidgets('note field accepts free text typing', (tester) async {

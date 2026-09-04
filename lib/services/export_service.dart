@@ -1,21 +1,33 @@
-import 'dart:io';
+import 'dart:convert';
 
 import 'package:csv/csv.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
 
 import '../models/category.dart';
 import '../models/transaction_entry.dart';
 import '../models/wallet.dart';
+import '../platform/exported_file.dart';
 import '../utils/formatters.dart';
 
 /// Exports a set of transactions (typically the currently selected report
-/// range) to CSV or PDF, then hands the file to the OS share sheet so the
-/// user can save it, email it to an accountant, etc.
+/// range) to CSV or PDF. Building the bytes is pure Dart so both the mobile
+/// share sheet and the browser download produce identical files.
 class ExportService {
-  Future<File> exportCsv({
+  pw.ThemeData? _pdfTheme;
+
+  /// The PDF library's built-in Helvetica has no Vietnamese glyphs, so every
+  /// accented character came out broken. Roboto (bundled in assets) covers
+  /// the full Vietnamese range.
+  Future<pw.ThemeData> _loadPdfTheme() async {
+    return _pdfTheme ??= pw.ThemeData.withFont(
+      base: pw.Font.ttf(await rootBundle.load('assets/fonts/Roboto-Regular.ttf')),
+      bold: pw.Font.ttf(await rootBundle.load('assets/fonts/Roboto-Medium.ttf')),
+    );
+  }
+
+  Future<ExportedFile> buildCsvReport({
     required List<TxEntry> transactions,
     required Category? Function(String? id) categoryOf,
     required Wallet? Function(String id) walletOf,
@@ -37,21 +49,21 @@ class ExportService {
           tx.tag ?? '',
         ],
     ];
-    final csv = Csv().encode(rows);
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/bao-cao-thu-chi.csv');
-    await file.writeAsString(csv, encoding: SystemEncoding());
-    return file;
+    return ExportedFile(
+      name: 'bao-cao-thu-chi.csv',
+      mimeType: 'text/csv',
+      bytes: utf8.encode(Csv().encode(rows)),
+    );
   }
 
-  Future<File> exportPdf({
+  Future<ExportedFile> buildPdfReport({
     required List<TxEntry> transactions,
     required Category? Function(String? id) categoryOf,
     required Wallet? Function(String id) walletOf,
     required DateTime start,
     required DateTime end,
   }) async {
-    final doc = pw.Document();
+    final doc = pw.Document(theme: await _loadPdfTheme());
     final income = transactions.where((t) => t.type == TxType.income).fold<double>(0, (s, t) => s + t.amount);
     final expense = transactions.where((t) => t.type == TxType.expense).fold<double>(0, (s, t) => s + t.amount);
 
@@ -90,15 +102,10 @@ class ExportService {
       ),
     );
 
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/bao-cao-thu-chi.pdf');
-    await file.writeAsBytes(await doc.save());
-    return file;
-  }
-
-  Future<void> shareFile(File file, {String? text}) async {
-    await SharePlus.instance.share(
-      ShareParams(files: [XFile(file.path)], text: text),
+    return ExportedFile(
+      name: 'bao-cao-thu-chi.pdf',
+      mimeType: 'application/pdf',
+      bytes: await doc.save(),
     );
   }
 }

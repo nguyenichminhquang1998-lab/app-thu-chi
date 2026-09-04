@@ -1,0 +1,8 @@
+Roboto-Regular.ttf và Roboto-Medium.ttf
+Bản quyền của Google, phát hành theo giấy phép Apache License 2.0.
+
+Hai phông này được nhúng vào app chỉ để dựng file PDF báo cáo: phông mặc định
+của thư viện tạo PDF (Helvetica) không có glyph tiếng Việt có dấu, khiến báo
+cáo xuất ra bị vỡ chữ.
+
+Toàn văn giấy phép: https://www.apache.org/licenses/LICENSE-2.0

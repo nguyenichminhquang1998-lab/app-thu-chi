@@ -1,10 +1,10 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../platform/file_delivery.dart';
 import '../../services/auth_lock_service.dart';
 import '../../services/backup_service.dart';
 import '../../services/notification_service.dart';
@@ -85,31 +85,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: settings.budgetModeEnabled,
             onChanged: settings.setBudgetModeEnabled,
           ),
-          const Divider(),
-          const _SectionHeader('Nhắc nhở'),
-          SwitchListTile(
-            secondary: const Icon(Icons.notifications_active_outlined),
-            title: const Text('Nhắc ghi chép hằng ngày'),
-            subtitle: Text(settings.reminderEnabled
-                ? '${settings.reminderHour.toString().padLeft(2, '0')}:${settings.reminderMinute.toString().padLeft(2, '0')} mỗi ngày'
-                : 'Đang tắt'),
-            value: settings.reminderEnabled,
-            onChanged: (v) => _toggleReminder(context, settings, v),
-          ),
-          if (settings.reminderEnabled) ...[
-            ListTile(
-              leading: const SizedBox(width: 24),
-              title: const Text('Đổi giờ nhắc nhở'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _pickReminderTime(context, settings),
+          // Scheduled local notifications need a native runtime — a browser
+          // cannot fire a reminder once the tab/PWA is closed — so the whole
+          // section is hidden on web rather than offering a switch that
+          // silently does nothing.
+          if (!kIsWeb) ...[
+            const Divider(),
+            const _SectionHeader('Nhắc nhở'),
+            SwitchListTile(
+              secondary: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Nhắc ghi chép hằng ngày'),
+              subtitle: Text(settings.reminderEnabled
+                  ? '${settings.reminderHour.toString().padLeft(2, '0')}:${settings.reminderMinute.toString().padLeft(2, '0')} mỗi ngày'
+                  : 'Đang tắt'),
+              value: settings.reminderEnabled,
+              onChanged: (v) => _toggleReminder(context, settings, v),
             ),
-            ListTile(
-              leading: const SizedBox(width: 24),
-              title: const Text('Gửi thông báo thử ngay'),
-              subtitle: const Text('Kiểm tra xem điện thoại có hiện thông báo/chuông không'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => NotificationService.instance.showTestNotification(),
-            ),
+            if (settings.reminderEnabled) ...[
+              ListTile(
+                leading: const SizedBox(width: 24),
+                title: const Text('Đổi giờ nhắc nhở'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _pickReminderTime(context, settings),
+              ),
+              ListTile(
+                leading: const SizedBox(width: 24),
+                title: const Text('Gửi thông báo thử ngay'),
+                subtitle: const Text('Kiểm tra xem điện thoại có hiện thông báo/chuông không'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => NotificationService.instance.showTestNotification(),
+              ),
+            ],
           ],
           const Divider(),
           const _SectionHeader('Bảo mật'),
@@ -119,7 +125,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: settings.lockEnabled,
             onChanged: (v) => _toggleLock(context, settings, v),
           ),
-          if (settings.lockEnabled)
+          // Browsers give this app no usable Face ID / fingerprint API, so on
+          // web the PIN is the only lock and this switch would be dead.
+          if (settings.lockEnabled && !kIsWeb)
             SwitchListTile(
               secondary: const Icon(Icons.fingerprint),
               title: const Text('Mở khoá bằng vân tay / Face ID'),
@@ -141,7 +149,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.upload_file_outlined),
             title: const Text('Sao lưu dữ liệu (xuất file)'),
-            onTap: () => _exportBackup(context),
+            onTap: () => _exportBackup(context, settings),
           ),
           ListTile(
             leading: const Icon(Icons.download_outlined),
@@ -240,7 +248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _exportBackup(BuildContext context) async {
+  Future<void> _exportBackup(BuildContext context, SettingsState settings) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
@@ -274,11 +282,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (choice == null) return;
     final file = switch (choice) {
-      'csv' => await _backupService.exportCsv(),
-      'md' => await _backupService.exportMarkdown(),
-      _ => await _backupService.exportToFile(),
+      'csv' => await _backupService.buildCsvExport(),
+      'md' => await _backupService.buildMarkdownExport(),
+      _ => await _backupService.buildJsonBackup(),
     };
-    await _backupService.shareFile(file, text: 'Dữ liệu Thu Chi');
+    await deliverFile(file, text: 'Dữ liệu Thu Chi');
+    await settings.markBackedUp();
   }
 
   Future<void> _restore(BuildContext context, AppState appState) async {
@@ -295,8 +304,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (confirmed != true) return;
     final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['json']);
-    if (files.isEmpty || files.single.path == null) return;
-    await _backupService.restoreFromFile(File(files.single.path!));
+    if (files.isEmpty) return;
+    // readAsBytes() works on every platform: in the browser a picked file is
+    // a Blob with no path at all, which is why reading it by path used to
+    // silently do nothing there.
+    try {
+      await _backupService.restoreFromBytes(await files.single.readAsBytes());
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không đọc được file sao lưu: $e')),
+        );
+      }
+      return;
+    }
     await appState.reloadAll();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
